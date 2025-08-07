@@ -7,3 +7,5 @@ lora를 학습시켜 safetensors 파일을 얻습니다. 쉘파일에서 실행�
 
 # run.sh
 위에서 학습시킨 lora 파일을 사용해서 원본 이미지의 질감을 바꿉니다. 쉘파일에서 실행하는 파이썬 스크립트의 --use_controlnet, --strength, --guidance_scale 등을 조절하여 생성할 수 있습니다. --input_path는 질감을 바꿀 이미지들이 있는 **폴더**의 경로, --lora_path는 lora safetensors **파일**의 경로이며 이 두 argument는 필수로 명시해줘야합니다.
+
+input_path 폴더에는 보내주셨던 검증용이미지들 넣어주시면 됩니다.
