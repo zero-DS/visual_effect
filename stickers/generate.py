@@ -15,7 +15,7 @@ parser.add_argument("--strength", type=float, default=0.3, help="Denoising stren
 parser.add_argument("--num_inference_steps", type=int, default=50, help="Number of inference steps")
 parser.add_argument("--guidance_scale", type=float, default=7.5, help="Classifier-free guidance scale")
 parser.add_argument("--lora_path", type=str, default=None, help="LoRA model path")
-parser.add_argument("--resolution", type=int, default=512, help="output resolution; 512 or 1024 recommended")
+parser.add_argument("--resolution", type=int, default=None, help="output resolution; 512 or 1024 recommended")
 parser.add_argument("--input_path", type=str, default=None, help="Input path")
 parser.add_argument("--output_path", type=str, default="outputs", help="Generated image output path")
 parser.add_argument("--keyword", type=str, default="s3wnf3lt", help="Keyword for prompt")
@@ -89,8 +89,15 @@ filenames = os.listdir(dir_name)
 for file in filenames:
     name = file.split('.')[0]
     path = os.path.join(dir_name, file)
-    input_image = load_image(path).resize((args.resolution, args.resolution), resample=Image.Resampling.LANCZOS)
-    prompt = f"{args.keyword} {name}"
+    input_image = Image.open(path).convert("RGB")
+    if args.resolution:
+        resol = (args.resolution, args.resolution)
+    else:
+        resol = input_image.size
+    input_image = input_image.resize(resol, resample=Image.Resampling.LANCZOS)
+
+    #prompt = f"{args.keyword} {name}"
+    prompt = f"{args.keyword}"
 
     if args.depth_control:
         control_image = get_depth_map(input_image)
