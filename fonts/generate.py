@@ -55,6 +55,44 @@ if args.use_captioning:
 else:
     captionmode = ""
 
+controlnet = ControlNetModel.from_pretrained(
+        "diffusers/controlnet-depth-sdxl-1.0", torch_dtype=torch.float16
+)
+image_encoder = CLIPVisionModelWithProjection.from_pretrained(
+    "h94/IP-Adapter", subfolder="models/image_encoder"
+).to(device="cuda", dtype=torch.float16)
+
+pipeline = StableDiffusionXLControlNetInpaintPipeline.from_pretrained(
+    "stabilityai/stable-diffusion-xl-base-1.0", image_encoder=image_encoder, controlnet=controlnet, torch_dtype=torch.float16
+).to(device="cuda")
+
+pipeline.load_ip_adapter(
+  "h94/IP-Adapter",
+  subfolder="sdxl_models",
+  weight_name="ip-adapter-plus_sdxl_vit-h.safetensors"
+)
+if args.ip_styleonly:
+    ip_scale = {
+    "up": {"block_0": [0.0, args.ip_scale, 0.0]},
+    }
+else:
+    ip_scale = args.ip_scale
+
+pipeline.set_ip_adapter_scale(ip_scale)
+
+if args.use_captioning:
+    captioning_query = f"<image>\n{captioning_prompt}" 
+    captioning_model = AutoModel.from_pretrained(
+        'OpenGVLab/InternVL3-1B',
+        torch_dtype=torch.bfloat16,
+        quantization_config=BitsAndBytesConfig(load_in_8bit=True),
+        low_cpu_mem_usage=True,
+        attn_implementation="flash_attention_2",
+        trust_remote_code=True,
+    ).eval()
+    tokenizer = AutoTokenizer.from_pretrained('OpenGVLab/InternVL3-1B', trust_remote_code=True, use_fast=False)
+
+
 dirname = args.ip_dir_path
 paths = os.listdir(dirname)
 for path in paths:
@@ -71,16 +109,6 @@ for path in paths:
     init_image = init_image.resize(resol)
 
     if args.use_captioning:
-        captioning_query = f"<image>\n{captioning_prompt}" 
-        captioning_model = AutoModel.from_pretrained(
-            'OpenGVLab/InternVL3-1B',
-            torch_dtype=torch.bfloat16,
-            quantization_config=BitsAndBytesConfig(load_in_8bit=True),
-            low_cpu_mem_usage=True,
-            attn_implementation="flash_attention_2",
-            trust_remote_code=True,
-        ).eval()
-        tokenizer = AutoTokenizer.from_pretrained('OpenGVLab/InternVL3-1B', trust_remote_code=True, use_fast=False)
         pixel_values = internvl3_utils.load_image(os.path.join(dirname, path), max_num=12).to(torch.bfloat16).cuda()
         generation_config = dict(max_new_tokens=1024, do_sample=True)
         response, _ = captioning_model.chat(tokenizer, pixel_values, captioning_query, generation_config, history=None, return_history=True)
@@ -100,32 +128,7 @@ for path in paths:
 
     control_image = mask_image
 
-    controlnet = ControlNetModel.from_pretrained(
-        "diffusers/controlnet-depth-sdxl-1.0", torch_dtype=torch.float16
-    )
-    image_encoder = CLIPVisionModelWithProjection.from_pretrained(
-        "h94/IP-Adapter", subfolder="models/image_encoder"
-    ).to(device="cuda", dtype=torch.float16)
-
-    pipeline = StableDiffusionXLControlNetInpaintPipeline.from_pretrained(
-        "stabilityai/stable-diffusion-xl-base-1.0", image_encoder=image_encoder, controlnet=controlnet, torch_dtype=torch.float16
-    ).to(device="cuda")
-
-    pipeline.load_ip_adapter(
-      "h94/IP-Adapter",
-      subfolder="sdxl_models",
-      weight_name="ip-adapter-plus_sdxl_vit-h.safetensors"
-    )
-    if args.ip_styleonly:
-        ip_scale = {
-        "up": {"block_0": [0.0, args.ip_scale, 0.0]},
-        }
-    else:
-        ip_scale = args.ip_scale
-
-    pipeline.set_ip_adapter_scale(ip_scale)
-
-    
+        
     image = pipeline(
         prompt=prompt,
         num_inference_steps=args.num_inference_steps,
