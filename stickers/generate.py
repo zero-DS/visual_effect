@@ -3,7 +3,7 @@ import numpy as np
 from diffusers import StableDiffusionXLImg2ImgPipeline, StableDiffusionXLControlNetImg2ImgPipeline, AutoencoderKL, ControlNetModel
 from diffusers.utils import load_image 
 from PIL import Image
-import os
+import os, math, json
 from transformers import DPTImageProcessor, DPTForDepthEstimation
 import cv2
 import argparse
@@ -11,27 +11,26 @@ import argparse
 parser = argparse.ArgumentParser(description="Run Stable Diffusion XL with LoRA.")
 parser.add_argument("--use_controlnet", action='store_true', help="Don't use ControlNet when False")
 parser.add_argument("--depth_control", action='store_true', help="Default control is canny; use depth when True")
-parser.add_argument("--strength", type=float, default=0.3, help="Denoising strength (0.0-1.0)")
 parser.add_argument("--num_inference_steps", type=int, default=50, help="Number of inference steps")
-parser.add_argument("--guidance_scale", type=float, default=7.5, help="Classifier-free guidance scale")
-parser.add_argument("--lora_path", type=str, default=None, help="LoRA model path")
-parser.add_argument("--resolution", type=int, default=None, help="output resolution; 512 or 1024 recommended")
+parser.add_argument("--resolution", type=int, default=1024, help="output resolution; larger than 512 recommended")
 parser.add_argument("--input_path", type=str, default=None, help="Input path")
 parser.add_argument("--output_path", type=str, default="outputs", help="Generated image output path")
-parser.add_argument("--keyword", type=str, default="s3wnf3lt", help="Keyword for prompt")
+parser.add_argument("--config_path", type=str, default=None, help="Config file for each texture")
+parser.add_argument("--texture", type=str, default="None", help="Texture to style change")
 args = parser.parse_args()
 
 assert args.input_path is not None, "need to specify --input_path for argument"
-assert args.lora_path is not None, "need to specify --lora_path for argument"
+assert args.texture is not None, "need to specify --keyword for argument" 
+assert args.config_path is not None, "need to specify --config_path for argument" 
 
 if args.use_controlnet:
     if args.depth_control:
-        mode = "depth"
+        mode = "_depth"
         depth_estimator = DPTForDepthEstimation.from_pretrained("Intel/dpt-hybrid-midas").to("cuda")
         feature_extractor = DPTImageProcessor.from_pretrained("Intel/dpt-hybrid-midas")
         control_model = "diffusers/controlnet-depth-sdxl-1.0"
     else:
-        mode = "canny"
+        mode = "_canny"
         control_model = "diffusers/controlnet-canny-sdxl-1.0"
     controlnet = ControlNetModel.from_pretrained(control_model, torch_dtype=torch.float16)
 
@@ -47,13 +46,11 @@ if args.use_controlnet:
             add_watermarker=False,
         )
 else:
-    mode = "nocontrol"
+    mode = ""
     pipe = StableDiffusionXLImg2ImgPipeline.from_pretrained(
             "stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=torch.float16, add_watermarker=False
         )
 
-pipe = pipe.to("cuda")
-pipe.load_lora_weights(pretrained_model_name_or_path_or_dict=args.lora_path)
 
 def get_depth_map(image):
     size = image.size
@@ -83,21 +80,41 @@ def get_canny(image):
     image = Image.fromarray(image)
     return image
 
+def resize_preserve_ratio(w, h, max_size=1024):
+    w = int(math.ceil(w / 32.0) * 32)
+    h = int(math.ceil(h / 32.0) * 32)
+    max_dim = max(w, h)
+    if max_dim > max_size:
+        scale = max_size / max_dim
+        w = int(w * scale)
+        h = int(h * scale)
+    return w, h
+
+with open(args.config_path, 'r') as f:
+    config = json.load(f)
+guidance_scale = config[args.texture]['cfg_scale']
+denoising_strength = config[args.texture]['denoising_strength']
+prompt = config[args.texture]['prompt']
+keyword = config[args.texture]['keyword']
+lora_path = config[args.texture]['lora_path']
+
+pipe = pipe.to("cuda")
+pipe.load_lora_weights(pretrained_model_name_or_path_or_dict=lora_path)
 
 dir_name = args.input_path
 filenames = os.listdir(dir_name)
+basename = os.path.basename(dir_name)
 for file in filenames:
     name = file.split('.')[0]
     path = os.path.join(dir_name, file)
     input_image = Image.open(path).convert("RGB")
     if args.resolution:
         resol = (args.resolution, args.resolution)
+        w, h = resol
     else:
-        resol = input_image.size
+        w, h = resize_preserve_ratio(input_image.size[0], input_image.size[1])
+        resol = tuple(w, h)
     input_image = input_image.resize(resol, resample=Image.Resampling.LANCZOS)
-
-    #prompt = f"{args.keyword} {name}"
-    prompt = f"{args.keyword}"
 
     if args.depth_control:
         control_image = get_depth_map(input_image)
@@ -109,14 +126,14 @@ for file in filenames:
         num_inference_steps=args.num_inference_steps,
         image=input_image,
         control_image=control_image,
-        guidance_scale=args.guidance_scale, 
-        strength=args.strength, 
+        guidance_scale=guidance_scale, 
+        strength=denoising_strength, 
         cross_attention_kwargs={"scale": 1.0}
     ).images[0]
 
-    out_dir = f"{args.output_path}/outputs_str{args.strength}_cfg{args.guidance_scale}_{mode}"
+    out_dir = f"{args.output_path}/{basename}_{args.texture}_str{denoising_strength}_cfg{guidance_scale}{mode}"
     os.makedirs(out_dir, exist_ok=True)
-    image.save(f"{out_dir}/{name}.png")
+    image.save(f"{out_dir}/{name}_{w}_{h}.png")
 
     del image
     torch.cuda.empty_cache()

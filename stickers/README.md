@@ -5,7 +5,15 @@ diffusers의 lora 훈련 스크립트는 폴더 내에 학습할 이미지들과
 # lora.sh
 lora를 학습시켜 safetensors 파일을 얻습니다. 쉘파일에서 실행하는 파이썬 스크립트의 --num_train_epochs 및 --rank를 조절하며 학습시킬 수 있습니다.
 
-# run.sh
-위에서 학습시킨 lora 파일을 사용해서 원본 이미지의 질감을 바꿉니다. 쉘파일에서 실행하는 파이썬 스크립트의 --use_controlnet, --strength, --guidance_scale 등을 조절하여 생성할 수 있습니다. --input_path는 질감을 바꿀 이미지들이 있는 **폴더**의 경로, --lora_path는 lora safetensors **파일**의 경로이며 이 두 argument는 필수로 명시해줘야합니다.
+# texture_configs.json
+학습시킨 lora를 활용하여 생성할 때 사용할 파일 경로 및 하이퍼파라미터를 설정하는 파일입니다. guidance scale, denoising strength, 텍스트 프롬프트를 설정합니다.
+
+# generate.py 
+위에서 학습시킨 lora 파일을 사용해서 원본 이미지의 질감을 바꿉니다. --input_path는 질감을 바꿀 이미지들이 있는 **폴더**의 경로, --config_path는 상기된 texture_configs.json 과 같은 설정**파일**의 경로, --texture는 바꾸고자 하는 질감입니다. 이 3가지 argument는 필수로 명시해줘야합니다.
+현재 기본 resolution은 1024*1024로 설정되어, 원본 이미지들도 1:1의 비율로 crop되어야 원래의 비율이 망가지지 않습니다.
+실행 예시는 다음과 같습니다.
+``` 
+python generate.py --input_path "target_images_dir" --texture "knit" --config_path "texture_configs.json"
+```
 
 input_path 폴더에는 보내주셨던 검증용이미지들 넣어주시면 됩니다.

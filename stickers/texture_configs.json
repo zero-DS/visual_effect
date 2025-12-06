@@ -1,0 +1,40 @@
+{
+    "felt" : {
+            "keyword" : "s3wnf3lt",
+            "prompt" : "s3wnf3lt texture with large stitches",
+            "lora_path" : "lora/felt.safetensors",
+            "cfg_scale" : 4.5,
+            "denoising_strength" : 0.5
+    },
+    "knit" : {
+            "keyword" : "k7n1it",
+            "prompt" : "k7n1it texture with chunky crochets",
+            "lora_path" : "lora/knit.safetensors",
+            "cfg_scale" : 4.5,
+            "denoising_strength" : 0.5
+
+    },
+    "illust" : {
+            "keyword" : "i1lu5t",
+            "prompt" : "i1lu5t texture with rough, thick strokes",
+            "lora_path" : "lora/illust.safetensors",
+            "cfg_scale" : 4.5,
+            "denoising_strength" : 0.5
+
+    },
+    "pixel" : {
+            "keyword" : "p1x3l6rt",
+            "prompt" : "p1x3l6rt texture with large pixels",
+            "lora_path" : "lora/pixel.safetensors",
+            "cfg_scale" : 4.5,
+            "denoising_strength" : 0.5
+
+    },
+    "plastic" : {
+            "keyword" : "p1a5t1c",
+            "prompt" : "p1a5t1c texture with sleek, glossy surface",
+            "lora_path" : "lora/plastic.safetensors",
+            "cfg_scale" : 4.5,
+            "denoising_strength" : 0.5
+    }
+}
